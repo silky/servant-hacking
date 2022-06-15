@@ -1,0 +1,44 @@
+name:                sh
+version:             0.1.0.0
+#synopsis:
+#description:
+homepage:            https://github.com/githubuser/sh#readme
+license:             BSD3
+author:              Author name here
+maintainer:          example@example.com
+copyright:           2022 Author name here
+category:            Web
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - bytestring
+  - containers
+  - cookie
+  - servant
+  - servant-auth
+  - servant-auth-server
+  - servant-blaze
+  - servant-server
+  - shakespeare
+  - text
+  - wai
+  - warp
+
+default-extensions:
+  - DataKinds
+  - DeriveGeneric
+  - DerivingStrategies
+  - FlexibleContexts
+  - ImportQualifiedPost
+  - NoStarIsType
+  - OverloadedStrings
+  - ScopedTypeVariables
+  - TypeApplications
+  - TypeOperators
+
+executables:
+  backend:
+    source-dirs:      src
+    main:             Main.hs
