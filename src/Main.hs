@@ -12,7 +12,7 @@ import Network.Wai                      (Request, requestHeaders)
 import Servant                          (Handler, err401, err403, throwError, errBody,
                                         type (:>), (:<|>)(..), Get, AuthProtect, Proxy(Proxy),
                                         Context((:.), EmptyContext), Server, serveWithContext,
-                                        Header, Headers(Headers), addHeader)
+                                        Header, Headers(Headers), addHeader, HList, getResponse)
 import Network.Wai.Handler.Warp         (run)
 import Servant.HTML.Blaze               (HTML)
 import Servant.Server.Experimental.Auth (AuthServerData, AuthHandler , mkAuthHandler)
@@ -30,18 +30,14 @@ lookupAccount key
       Nothing   -> throwError (err403 { errBody = "Invalid Cookie" })
       Just user -> return user
 
--- type AuthContext r = AuthHandler Request (SessionFor r)
--- authHandler :: AuthContext 'Anyone
--- authHandler :: AuthHandler Request SessionFor
---
-type AuthContext = AuthHandler Request SessionFor
+type AuthContext = AuthHandler Request (Account, SetCookie)
 
 authHandler :: AuthContext
 authHandler = mkAuthHandler handler
   where
     maybeToEither e = maybe (Left e) Right
     throw401 msg = throwError $ err401 { errBody = msg }
-    handler :: Request -> Handler SessionFor
+    handler :: Request -> Handler (Account, SetCookie)
     handler req = do
       let h = requestHeaders req
           c = lookup "cookie" h
@@ -54,7 +50,7 @@ authHandler = mkAuthHandler handler
             Nothing  -> throw401 "Missing 'servant-auth-cookie' in cookie."
             Just ac' -> do
               acc <- lookupAccount ac'
-              pure $ (addHeader mkSessionCookie acc)
+              pure $ (acc, mkSessionCookie)
 
 mkSessionCookie :: SetCookie
 mkSessionCookie =
@@ -70,23 +66,25 @@ mkSessionCookie =
     where
       oneWeek = 3600 * 24 * 7
 
-type SessionFor = Headers '[Header "Set-Cookie" SetCookie] Account
+type HeadersWith a = Headers '[Header "Set-Cookie" SetCookie] a
 
 type AuthGenApi
-  =    "private" :> AuthProtect "cookie-auth" :> Get '[HTML] Html
+  =    "private" :> AuthProtect "cookie-auth" :> Get '[HTML] (HeadersWith Html)
   :<|> "public"  :> Get '[HTML] Html
 
 genAuthApi :: Proxy AuthGenApi
 genAuthApi = Proxy
 
-type instance AuthServerData (AuthProtect "cookie-auth") = SessionFor
+type instance AuthServerData (AuthProtect "cookie-auth") = (Account, SetCookie)
 
 genAuthServerContext :: Context '[AuthContext]
 genAuthServerContext = authHandler :. EmptyContext
 
 genAuthServer :: Server AuthGenApi
 genAuthServer =
-  let privateDataFunc (Headers (Account name) _) = return $ [shamlet|this is secret: #{name}|]
+  let privateDataFunc :: (Account, SetCookie) -> Handler (HeadersWith Html)
+      privateDataFunc (Account name, cookie) = do
+        return $ addHeader cookie ([shamlet|this is secret: #{name}|])
       publicData = return [shamlet|public data.|]
    in privateDataFunc :<|> publicData
 
